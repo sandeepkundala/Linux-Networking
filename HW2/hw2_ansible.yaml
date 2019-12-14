@@ -1,0 +1,9 @@
+---
+- name: Collect logs from host vm and guest vms
+  hosts: vm
+  become: true
+  become_user: root
+  become_method: sudo
+  tasks:
+    - name: Run the log script
+      command: bash h2.sh {{time}}

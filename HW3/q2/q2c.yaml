@@ -1,0 +1,49 @@
+--- #Playbook to create vm infrastructure
+- hosts: localhost
+  gather_facts: no
+  become: yes
+  become_user: root
+  vars_files:
+      - vmVars.yaml
+      - networkVars.yaml
+      
+  tasks:
+    - debug:
+         msg: "{{vms}}"
+
+
+  # List of VMs
+    - name: Get list of VMs
+      virt:
+        command: "list_vms"
+      register: vmList
+
+
+    #Create VM Disks
+    - name: Create VM disk
+      command: >
+               virt-builder --format qcow2 centos-7.3
+               -o '{{vm_disk_location}}/{{item.name}}.img' --size '{{item.disk}}'
+               --install wireshark,iperf3
+               --root-password password:{{ root_pass }}
+      with_items: "{{ vms }}"
+
+    #Define new vm
+    - name: Define new vm
+      virt:
+        name: "{{ item.name }}"
+        command: define
+        xml: "{{ lookup('template', 'templates/vmTemplate.xml.j2') }}"
+      when: item.name not in vmList.list_vms
+      with_items: "{{ vms }}"
+      
+      
+    # Create and start  vm
+    - name: Start vm
+      virt:
+        name: "{{ item.name }}"
+        command: create
+      when: item.name not in vmList.list_vms
+      with_items: "{{ vms }}"
+
+

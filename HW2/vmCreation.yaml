@@ -1,0 +1,14 @@
+--- # Playbook to create two VMs
+- hosts: localhost
+  gather_facts: no
+  become: yes
+  become_user: root
+
+  tasks:
+          - name: Create vm1
+            command: sudo virt-install -n hw2_q4_vm1 -r 2048 --vcpu=2 --cpu host --disk path=/var/lib/libvirt/images/hw2_q4_vm1.img,size=8 --network network=ovs_q4 -c /home/ece792/ubuntu-18.04.3-live-server-amd64.iso -v 
+
+          - name: Create vm2
+            command: sudo virt-install -n hw2_q4_vm2 -r 2048 --vcpu=2 --cpu host --disk path=/var/lib/libvirt/images/hw2_q4_vm2.img,size=8 --network network=ovs_q4 -c /home/ece792/ubuntu-18.04.3-live-server-amd64.iso -v
+
+

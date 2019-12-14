@@ -1,0 +1,29 @@
+--- # Playbook to create L3 network
+- hosts: localhost
+  gather_facts: no
+  become: yes
+  become_user: root
+
+  tasks:
+          - name: Create OVS Switch
+            openvswitch_bridge:
+                    bridge: openswitch_1
+                    state: present
+          
+          - name: Define a network
+            virt_net:
+                    command: define
+                    name: ovs_q4 
+                    xml: '{{ lookup("template", "ovs_q4.xml") }}'
+        
+          - name: Start the Network
+            virt_net:
+                    command: create
+                    name: ovs_q4
+                    state: active
+          
+          - name: add IP address
+            command: sudo ip address add 13.13.14.1/24 dev openswitch_1
+
+          - name: turn link up
+            command: sudo ip link set dev openswitch_1 up

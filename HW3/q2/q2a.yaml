@@ -1,0 +1,110 @@
+--- #Playbook to create ovs infrastructure
+- hosts: localhost
+  gather_facts: no
+  become: yes
+  become_user: root
+  vars_files:
+      - networksVars.yaml
+
+  tasks:
+    - debug:
+         msg: "{{list}}"
+    
+
+     # Define a new network at the start
+    - name: Define Virtual Networks
+      virt_net:
+        command: define
+        name: "{{list[item].network_name}}"
+        xml: "{{ lookup('template', 'templates/bridgeTemplate.xml.j2' ) }}"
+      with_items: "{{ list }}"
+
+    # Create an OVS type bridge
+    - name: Create OVS Bridge - Internet  
+      openvswitch_bridge:
+          bridge: "{{list['internetN'].bridge_name}}"
+          state: present
+      
+
+    # Create and start a network
+    - name: Create Virtual Network if not created
+      virt_net:
+        command: create
+        name: "{{ list['internetN'].network_name }}"
+
+
+    - name: add IP address
+      command: "sudo ip address add {{list['internetN'].ip_address}} dev {{list['internetN'].bridge_name}}"
+    
+    # Provide  DHCP and DNS 
+    - name: Make the bridge in dhcp mode
+      command: "sudo dnsmasq --interface={{list['internetN'].bridge_name}} --except-interface=lo --bind-interfaces --dhcp-range={{list['internetN'].dhcp_range}}"
+     
+
+    # Provide bridge NAT functionality at hyperviosr
+    - name: Make the bridge in nat mode
+      command: "sudo iptables -t nat -A POSTROUTING -s {{list['internetN'].subnet_address}} -j MASQUERADE" 
+      
+
+    - name: turn link up
+      command: "sudo ip link set dev {{list['internetN'].bridge_name}} up"
+
+
+    # Create an OVS type bridge
+    - name: Create OVS Bridge - L2  
+      openvswitch_bridge:
+          bridge: "{{list['l2N'].bridge_name}}"
+          state: present
+
+    
+    # Create and start a network
+    - name: Create Virtual Network if not created
+      virt_net:
+        command: create
+        name: "{{ list['l2N'].network_name }}"
+
+    - name: turn link up
+      command: "sudo ip link set dev {{list['l2N'].bridge_name}} up"
+
+
+     # Create an OVS type bridge
+    - name: Create OVS Bridge - L3  
+      openvswitch_bridge:
+          bridge: "{{list['l3N'].bridge_name}}"
+          state: present
+
+    
+    # Create and start a network
+    - name: Create Virtual Network if not created
+      virt_net:
+        command: create
+        name: "{{ list['l3N'].network_name }}"
+
+
+    - name: add IP address
+      command: "sudo ip address add {{list['l3N'].ip_address}} dev {{list['l3N'].bridge_name}}"
+
+    - name: turn link up
+      command: "sudo ip link set dev {{list['l3N'].bridge_name}} up"
+
+     # Create an OVS type bridge
+    - name: Create OVS Bridge - Other  
+      openvswitch_bridge:
+          bridge: "{{list['otherN'].bridge_name}}"
+          state: present
+
+    
+    # Create and start a network
+    - name: Create Virtual Network if not created
+      virt_net:
+        command: create
+        name: "{{ list['otherN'].network_name }}"
+
+
+    - name: add IP address
+      command: "sudo ip address add {{list['otherN'].ip_address}} dev {{list['otherN'].bridge_name}}"
+
+    - name: turn link up
+      command: "sudo ip link set dev {{list['otherN'].bridge_name}} up"
+
+    
