@@ -1,0 +1,51 @@
+---
+  - name: Create veth pair to connect leaf and namespace
+    command: "ip link add {{leaf}}{{ns}} type veth peer name {{ns}}{{leaf}}"
+    become: yes
+    ignore_errors: yes
+
+  - name: Attach one end to the namespace
+    command: "ip link set {{ns}}{{leaf}} netns {{ns}}"
+    become: yes
+    ignore_errors: yes
+
+  - name: Get process id of the leaf
+    command: "docker inspect -f {%raw%}'{{.State.Pid}}'{%endraw%} {{leaf}}"
+    register: pid
+    become: yes
+    ignore_errors: yes
+
+  - name: Attach other to the leaf
+    command: "ip link set dev {{leaf}}{{ns}} netns {{pid.stdout}}"
+    become: yes
+    ignore_errors: yes
+
+  - name: Assign ip address to the leaf interface
+    command: "docker exec --privileged {{leaf}} ip addr add {{interface_ns}}1/24 dev {{leaf}}{{ns}}"
+    become: yes
+    ignore_errors: yes
+
+  - name: Set the leaf interface up
+    command: "docker exec --privileged {{leaf}} ip link set {{leaf}}{{ns}} up"
+    become: yes
+    ignore_errors: yes
+
+  - name: Assign ip address to the namespace interface
+    command: "ip netns exec {{ns}} ip addr add {{interface_ns}}2/24 dev {{ns}}{{leaf}}"
+    become: yes
+    ignore_errors: yes
+
+  - name: Set the namespace interface up
+    command: "ip netns exec {{ns}} ip link set {{ns}}{{leaf}} up"
+    become: yes
+    ignore_errors: yes
+
+  - name: Add default route in the namespace
+    command: "ip netns exec {{ns}} ip route add default via {{interface_ns}}1"
+    become: yes
+    ignore_errors: yes
+
+  - name: Create a bridge inside the namespace
+    command: "ip netns exec {{ns}} brctl addbr {{bridge}}"
+    become: yes
+    ignore_errors: yes

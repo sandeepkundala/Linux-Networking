@@ -1,0 +1,96 @@
+---
+- hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Create and start Container1
+      command: "docker run -itd --name={{CS1}} {{image_name}}"
+      become: yes
+      ignore_errors: yes
+
+    - name: Create and start Container2
+      command: "docker run -itd --name={{CS2}} {{image_name}}"
+      become: yes
+      ignore_errors: yes
+
+    - name: Create network ns for Container1
+      command: "ip netns add NS1_{{ip_net}}"
+      become: yes
+      ignore_errors: yes
+
+    - name: Create network ns for Container2
+      command: "ip netns add NS2_{{ip_net}}"
+      become: yes
+      ignore_errors: yes
+
+    - name: Connect NS1 to both LC1 and CS1
+      include_tasks: connect_namespace.yaml
+      vars:
+        bridge: "bridge1_{{ip_net}}"
+        container: "{{CS1}}"
+        interface_cs: "{{ip_net}}.2.0.2/24"
+        interface_ns: "{{ip_net}}.0.0."
+        leaf: "LC1"
+        ns: "NS1_{{ip_net}}"
+      ignore_errors: yes
+      
+    - name: Connect NS2 to both LC2 and CS2
+      include_tasks: connect_namespace.yaml
+      vars:
+        bridge: "bridge2_{{ip_net}}"
+        container: "{{CS2}}"
+        interface_cs: "{{ip_net}}.2.0.3/24"
+        interface_ns: "{{ip_net}}.1.0."
+        leaf: "LC2"
+        ns: "NS2_{{ip_net}}"
+      ignore_errors: yes
+
+    - name: Create vxlan interface in NS1
+      command: "ip netns exec NS1_{{ip_net}} ip link add name vxlan_{{ip_net}} type vxlan id 42 dev NS1_{{ip_net}}LC1 remote {{ip_net}}.1.0.2 dstport 4789"
+      become: yes
+      ignore_errors: yes
+
+    - name: Create vxlan interface in NS2
+      command: "ip netns exec NS2_{{ip_net}} ip link add name vxlan_{{ip_net}} type vxlan id 42 dev NS2_{{ip_net}}LC2 remote {{ip_net}}.0.0.2 dstport 4789"
+      become: yes
+      ignore_errors: yes
+
+    - name: Set vxlan interface up in NS1
+      command: "ip netns exec NS1_{{ip_net}} ip link set vxlan_{{ip_net}} up"
+      become: yes
+      ignore_errors: yes
+
+    - name: Set vxlan interface up in NS2
+      command: "ip netns exec NS2_{{ip_net}} ip link set vxlan_{{ip_net}} up"
+      become: yes
+      ignore_errors: yes
+
+    - name: Attach the vxlan interface to bridge
+      command: "ip netns exec NS1_{{ip_net}} brctl addif bridge1_{{ip_net}} vxlan_{{ip_net}}"
+      become: yes
+      ignore_errors: yes
+
+    - name: Attach the vxlan interface to bridge
+      command: "ip netns exec NS2_{{ip_net}} brctl addif bridge2_{{ip_net}} vxlan_{{ip_net}}"
+      become: yes
+      ignore_errors: yes
+      
+    - name: Add route to destination namespace in LC1
+      command: "docker exec --privileged LC1 ip route add {{ip_net}}.1.0.0/24 via 1.1.1.2"
+      become: yes
+      ignore_errors: yes
+      
+    - name: Add route to source namesapce in LC2
+      command: "docker exec --privileged LC2 ip route add {{ip_net}}.0.0.0/24 via 1.1.3.2"
+      become: yes
+      ignore_errors: yes
+      
+    - name: Add route to destination namespace in SC1
+      command: "docker exec --privileged SC1 ip route add {{ip_net}}.0.0.0/24 via 1.1.3.1"
+      become: yes
+      ignore_errors: yes
+      
+    - name: Add route to source namesapce in SC1
+      command: "docker exec --privileged SC1 ip route add {{ip_net}}.1.0.0/24 via 1.1.1.1"
+      become: yes
+      ignore_errors: yes

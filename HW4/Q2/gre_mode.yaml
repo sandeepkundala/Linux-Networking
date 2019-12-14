@@ -1,0 +1,85 @@
+---
+- hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Create and start Container1
+      command: "docker run -itd --name={{CS1}} {{image_name}}"
+      become: yes
+      ignore_errors: yes
+
+    - name: Create and start Container2
+      command: "docker run -itd --name={{CS2}} {{image_name}}"
+      become: yes
+      ignore_errors: yes
+
+    - name: Create L2 bridge1 for Container1
+      command: "brctl addbr bridge1_{{ip_net}}"
+      become: yes
+      ignore_errors: yes
+
+    - name: Create L2 bridge2 for Container2
+      command: "brctl addbr bridge2_{{ip_net}}"
+      become: yes
+      ignore_errors: yes
+      
+    - name: Set the bridge1 up
+      command: "ip link set bridge1_{{ip_net}} up"
+      become: yes
+      ignore_errors: yes
+
+    - name: Set the bridge2 up
+      command: "ip link set bridge2_{{ip_net}} up"
+      become: yes
+      ignore_errors: yes
+
+    - name: Connect LC1 to bridge1
+      include_tasks: connect_bridge.yaml
+      vars:
+        container: LC1
+        bridge: "bridge1_{{ip_net}}"
+        interface_ip: "{{ip_net}}.0.0.1/24"
+      ignore_errors: yes
+      
+    - name: Connect Container1 to bridge1
+      include_tasks: connect_bridge.yaml
+      vars:
+        container: "{{CS1}}"
+        bridge: "bridge1_{{ip_net}}"
+        interface_ip: "{{ip_net}}.0.0.2/24"
+      ignore_errors: yes
+      
+    - name: Connect LC2 to bridge2
+      include_tasks: connect_bridge.yaml
+      vars:
+        container: LC2
+        bridge: "bridge2_{{ip_net}}"
+        interface_ip: "{{ip_net}}.1.0.1/24"
+      ignore_errors: yes
+      
+    - name: Connect Container2 to bridge2
+      include_tasks: connect_bridge.yaml
+      vars:
+        container: "{{CS2}}"
+        bridge: "bridge2_{{ip_net}}"
+        interface_ip: "{{ip_net}}.1.0.2/24"
+      ignore_errors: yes
+      
+    - name: Add route to Container2 via gre tunnel in LC1
+      command: "docker exec --privileged LC1 ip route add {{ip_net}}.1.0.0/24 dev gretun1"
+      become: yes
+      ignore_errors: yes
+
+    - name: Add route to Container1 via gre tunnel in LC2
+      command: "docker exec --privileged LC2 ip route add {{ip_net}}.0.0.0/24 dev gretun1"
+      become: yes
+      ignore_errors: yes
+
+    - name: Add route to Container2 in Container1
+      command: "docker exec --privileged {{CS1}} ip route add {{ip_net}}.1.0.0/24 via {{ip_net}}.0.0.1"
+      become: yes
+      ignore_errors: yes
+      
+    - name: Add route to Container1 in Container2
+      command: "docker exec --privileged {{CS2}} ip route add {{ip_net}}.0.0.0/24 via {{ip_net}}.1.0.1"
+      become: yes
+      ignore_errors: yes

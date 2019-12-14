@@ -1,0 +1,36 @@
+---
+  - name: Create veth pair to connect container and bridge
+    command: "ip link add {{container}}{{bridge}} type veth peer name {{bridge}}{{container}}"
+    become: yes
+    ignore_errors: yes
+
+  - name: Attach one end to the bridge
+    command: "brctl addif {{bridge}} {{bridge}}{{container}}"
+    become: yes
+    ignore_errors: yes
+
+  - name: Get process id of the container
+    command: "docker inspect -f {%raw%}'{{.State.Pid}}'{%endraw%} {{container}}"
+    register: pid
+    become: yes
+    ignore_errors: yes
+
+  - name: Attach other to the container
+    command: "ip link set dev {{container}}{{bridge}} netns {{pid.stdout}}"
+    become: yes
+    ignore_errors: yes
+
+  - name: Assign ip address to the container interface
+    command: "docker exec --privileged {{container}} ip addr add {{interface_ip}} dev {{container}}{{bridge}}"
+    become: yes
+    ignore_errors: yes
+
+  - name: Set the container interface up
+    command: "docker exec --privileged {{container}} ip link set {{container}}{{bridge}} up"
+    become: yes
+    ignore_errors: yes
+
+  - name: Set the bridge interface up
+    command: "ip link set {{bridge}}{{container}} up"
+    become: yes
+    ignore_errors: yes

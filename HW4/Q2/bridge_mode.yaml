@@ -1,0 +1,47 @@
+---
+- hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Create bridge
+      command: "brctl addbr bridge_{{ip_net}}"
+      become: yes
+      ignore_errors: yes
+
+    - name: Bridge - up
+      command: "ip link set bridge_{{ip_net}} up"
+      become: yes
+      ignore_errors: yes
+
+    - name: Create and start container1
+      command: "docker run -itd --name={{CS1}} {{image_name}}"
+      become: yes
+      ignore_errors: yes
+
+    - name: Create and start container2
+      command: "docker run -itd --name={{CS2}} {{image_name}}"
+      become: yes
+      ignore_errors: yes
+
+    - name: Connect LC1 and bridge
+      include_tasks: connect_bridge.yaml
+      vars:
+              container: LC1
+              bridge: "bridge_{{ip_net}}"
+              interface_ip: "{{ip_net}}.0.0.1/24"
+      ignore_errors: yes
+      
+    - name: Connect container1 and bridge
+      include_tasks: connect_bridge.yaml
+      vars:
+              container: "{{CS1}}"
+              bridge: "bridge_{{ip_net}}"
+              interface_ip: "{{ip_net}}.0.0.2/24"
+      ignore_errors: yes
+      
+    - name: Connect container2 and bridge
+      include_tasks: connect_bridge.yaml
+      vars:
+              container: "{{CS2}}"
+              bridge: "bridge_{{ip_net}}"
+              interface_ip: "{{ip_net}}.0.0.3/24"
+      ignore_errors: yes
